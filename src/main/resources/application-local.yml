@@ -1,15 +1,7 @@
 # 로컬 개발 프로파일
 #   SPRING_PROFILES_ACTIVE=local
-#
-# 기본 프로파일과 다른 점은 Sakila 시드 데이터(9MB)를 로드한다는 것뿐이다.
-# 첫 기동은 데이터 삽입 때문에 1~3분 걸린다. 이후 기동은 Flyway 가 건너뛴다.
 
 spring:
-  flyway:
-    locations:
-      - classpath:db/migration
-      - classpath:db/seed
-
   jpa:
     properties:
       hibernate:

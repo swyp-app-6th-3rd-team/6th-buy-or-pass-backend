@@ -47,8 +47,7 @@ public class SecurityConfig {
     private static final String[] PUBLIC_GET = {
             "/", "/error", "/favicon.ico",
             "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/scalar/**", "/scalar",
-            "/actuator/health/**",
-            "/api/films/**", "/api/actors/**"
+            "/actuator/health/**"
     };
 
     private final CustomOAuth2UserService oAuth2UserService;

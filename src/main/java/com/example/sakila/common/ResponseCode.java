@@ -23,10 +23,6 @@ public enum ResponseCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     OAUTH2_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다."),
 
-    // 도메인 (템플릿 예시 — 새 프로젝트에서는 이 구간을 교체한다)
-    RENTAL_NOT_FOUND(HttpStatus.NOT_FOUND, "대여 정보를 찾을 수 없습니다."),
-    RENTAL_ALREADY_RETURNED(HttpStatus.CONFLICT, "이미 반납된 대여입니다."),
-
     // 서버
     SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "일시적인 오류가 발생했습니다.");
 

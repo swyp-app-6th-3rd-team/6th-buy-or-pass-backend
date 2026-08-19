@@ -29,7 +29,6 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 class ArchitectureTest {
 
     private static final String BASE = "com.example.sakila";
-    private static final String RENTAL_DOMAIN = "..rental.domain..";
     private static final String AUTH_DOMAIN = "..auth.domain..";
 
     private static JavaClasses classesUnderTest;
@@ -48,7 +47,7 @@ class ArchitectureTest {
         @Test
         @DisplayName("도메인은 JPA 에 의존하지 않는다")
         void noJpaDependency() {
-            noClasses().that().resideInAnyPackage(RENTAL_DOMAIN, AUTH_DOMAIN)
+            noClasses().that().resideInAPackage(AUTH_DOMAIN)
                     .should().dependOnClassesThat().resideInAnyPackage("jakarta.persistence..")
                     .check(classesUnderTest);
         }
@@ -56,7 +55,7 @@ class ArchitectureTest {
         @Test
         @DisplayName("도메인은 검증 애노테이션에 의존하지 않는다")
         void noValidationDependency() {
-            noClasses().that().resideInAnyPackage(RENTAL_DOMAIN, AUTH_DOMAIN)
+            noClasses().that().resideInAPackage(AUTH_DOMAIN)
                     .should().dependOnClassesThat().resideInAnyPackage("jakarta.validation..")
                     .check(classesUnderTest);
         }
@@ -66,7 +65,7 @@ class ArchitectureTest {
         void noLombokInDomain() {
             // @Builder 는 생성자 검증을 건너뛰고, @NoArgsConstructor 는 불변식을 우회하는
             // 기본 생성자를 열고, @Setter 는 상태 전이 규칙을 무력화한다.
-            noClasses().that().resideInAnyPackage(RENTAL_DOMAIN, AUTH_DOMAIN)
+            noClasses().that().resideInAPackage(AUTH_DOMAIN)
                     .should().dependOnClassesThat().resideInAnyPackage("lombok..")
                     .check(classesUnderTest);
         }
@@ -74,7 +73,7 @@ class ArchitectureTest {
         @Test
         @DisplayName("도메인은 인프라를 알지 못한다")
         void domainDoesNotKnowInfra() {
-            noClasses().that().resideInAnyPackage(RENTAL_DOMAIN, AUTH_DOMAIN)
+            noClasses().that().resideInAPackage(AUTH_DOMAIN)
                     .should().dependOnClassesThat().resideInAnyPackage("..infra..")
                     .check(classesUnderTest);
         }
@@ -82,7 +81,7 @@ class ArchitectureTest {
         @Test
         @DisplayName("도메인은 웹 계층을 알지 못한다")
         void domainDoesNotKnowWeb() {
-            noClasses().that().resideInAnyPackage(RENTAL_DOMAIN, AUTH_DOMAIN)
+            noClasses().that().resideInAPackage(AUTH_DOMAIN)
                     .should().dependOnClassesThat().resideInAnyPackage("..controller..", "org.springframework.web..")
                     .check(classesUnderTest);
         }
@@ -91,7 +90,7 @@ class ArchitectureTest {
         @DisplayName("도메인은 금액·수량에 실수형을 쓰지 않는다")
         void noFloatingPointInDomain() {
             // 부동소수점은 반올림 오차가 누적되어 합계를 어긋나게 만든다.
-            noClasses().that().resideInAnyPackage(RENTAL_DOMAIN, AUTH_DOMAIN)
+            noClasses().that().resideInAPackage(AUTH_DOMAIN)
                     .should().dependOnClassesThat().haveFullyQualifiedName("java.lang.Double")
                     .orShould().dependOnClassesThat().haveFullyQualifiedName("java.lang.Float")
                     .check(classesUnderTest);
@@ -191,21 +190,6 @@ class ArchitectureTest {
         void controllersDoNotReturnSpringWindow() {
             noMethods().that().arePublic().and().areDeclaredInClassesThat().resideInAPackage("..controller..")
                     .should().haveRawReturnType(Window.class)
-                    .check(classesUnderTest);
-        }
-    }
-
-    @Nested
-    @DisplayName("템플릿 경계")
-    class TemplateBoundary {
-
-        @Test
-        @DisplayName("Sakila 예제는 DDD 참조 구현을 침범하지 않는다")
-        void sakilaExamplesDoNotDependOnRental() {
-            // sakila 패키지는 지워질 예제다. rental(참조 구현)이 여기에 얽히면
-            // 예제를 지울 때 참조 구현까지 깨진다.
-            noClasses().that().resideInAPackage("..sakila.infra..")
-                    .should().dependOnClassesThat().resideInAPackage("..rental..")
                     .check(classesUnderTest);
         }
     }
