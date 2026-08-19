@@ -1,0 +1,33 @@
+{
+  "description": "Buy or Pass repository hooks",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$(git -c 'safe.directory=*' rev-parse --show-toplevel)/.codex/hooks/session-start.ps1\"",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"& { $repoRoot = (& git -c 'safe.directory=*' rev-parse --show-toplevel).Trim(); & (Join-Path $repoRoot '.codex/hooks/session-start.ps1') }\"",
+            "statusMessage": "Loading Buy or Pass repository context",
+            "additionalContextLimit": 1200,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$(git -c 'safe.directory=*' rev-parse --show-toplevel)/.codex/hooks/stop-validation.ps1\"",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"& { $repoRoot = (& git -c 'safe.directory=*' rev-parse --show-toplevel).Trim(); & (Join-Path $repoRoot '.codex/hooks/stop-validation.ps1') }\"",
+            "statusMessage": "Validating the local Codex harness",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
