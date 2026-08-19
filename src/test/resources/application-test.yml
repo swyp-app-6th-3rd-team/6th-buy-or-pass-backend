@@ -1,0 +1,42 @@
+# 통합 테스트 프로파일
+#
+# 시드 데이터(9MB)를 로드하지 않는다. Flyway location 이 db/migration 뿐이라
+# 스키마 18개 테이블만 올라간다. 테스트는 필요한 픽스처를 직접 만든다.
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+app:
+  jwt:
+    # 테스트 전용 키. 32바이트 이상이어야 기동한다.
+    secret-key: test-secret-key-for-integration-tests-only-32bytes+
+    access-token-validity: PT30M
+    refresh-token-validity: P14D
+    issuer: sakila-ddd-template-test
+
+management:
+  # 운영에서는 관리 엔드포인트를 별도 포트로 분리한다(메트릭 외부 노출 방지).
+  # 테스트에서는 서비스 포트와 합친다 — MockMvc 는 포트 개념이 없어서 분리하면
+  # /actuator/** 가 404 가 되고, "공개 엔드포인트가 인증 없이 열린다" 는
+  # 보안 계약 검증이 불가능해진다.
+  #
+  # 빈 값이 곧 "분리하지 않음" 이다(-1 은 엔드포인트를 아예 끄므로 쓰면 안 된다).
+  # 합쳐도 SecurityConfig 의 managementFilterChain 이 그대로 적용되므로
+  # 테스트가 검증하는 대상은 동일하다.
+  server:
+    port:
+
+logging:
+  level:
+    root: WARN
+    com.example.sakila: INFO
+    org.testcontainers: INFO

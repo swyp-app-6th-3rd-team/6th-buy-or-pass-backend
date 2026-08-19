@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  로그 파일을 레벨별 디렉터리로 나눠 남긴다.
+
+      ${LOG_DIR}/error/error-2026-08-15.log
+      ${LOG_DIR}/warn/warn-2026-08-15.log
+      ${LOG_DIR}/info/info-2026-08-15.log
+
+  이 디렉터리를 도커 볼륨에 마운트해 컨테이너가 삭제돼도 로그가 남게 한다.
+  근거: docs/adr/0009-log-persistence.md
+
+  파일명이 logback.xml 이 아니라 logback-spring.xml 인 이유는
+  스프링이 로그 초기화를 제어할 수 있어야 <springProfile> 이 동작하기 때문이다.
+-->
+<configuration>
+
+    <!-- 스프링 부트의 기본 변환 규칙(CONSOLE_LOG_PATTERN, 색상 등)을 가져온다. -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!--
+      로그 위치. 컨테이너에서는 환경변수 LOG_DIR 로 덮어쓴다(/app/logs).
+      로컬 개발에서는 프로젝트 아래 logs/ 에 쌓인다(.gitignore 대상).
+    -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="app"/>
+    <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+
+    <!--
+      correlationId 는 CorrelationIdFilter 가 MDC 에 넣는다(X-Request-Id 헤더 또는 UUID).
+      이게 있어야 한 요청의 로그를 흩어진 줄들 사이에서 다시 모을 수 있다.
+      값이 없는 로그(기동 로그 등)는 하이픈으로 표시된다.
+    -->
+    <!--
+      trace_id / span_id 는 OTel 에이전트가 MDC 에 넣는다(logback-mdc 계측).
+      에이전트 없이 실행하면 값이 없으므로 하이픈으로 표시된다 — 즉 이 패턴은
+      에이전트 유무와 무관하게 안전하다.
+
+      두 추적 ID 가 공존하는 이유:
+        correlationId — 이 앱이 만든다(X-Request-Id). 클라이언트가 지정할 수 있다.
+        trace_id      — OTel 이 만든다. 서비스 경계를 넘어 전파된다.
+      Grafana 에서 트레이스를 찾은 뒤 그 trace_id 로 로그를 조회하면
+      두 세계가 연결된다(Loki datasource 의 derivedFields 가 이 값을 파싱한다).
+    -->
+    <property name="FILE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{correlationId:--}] [%X{trace_id:--}] [%X{span_id:--}] [%thread] %logger{36} - %msg%n%wEx"/>
+
+    <property name="CONSOLE_LOG_PATTERN_WITH_CID"
+              value="%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level) %clr([%X{correlationId:--}]){magenta} %clr([%X{trace_id:--}]){blue} %clr(%logger{36}){cyan} - %msg%n%wEx"/>
+
+    <!-- 롤링 정책: 하루 단위 + 파일당 100MB, 30일 보관, 전체 3GB 상한 -->
+    <property name="MAX_HISTORY" value="${LOG_MAX_HISTORY:-30}"/>
+    <property name="MAX_FILE_SIZE" value="${LOG_MAX_FILE_SIZE:-100MB}"/>
+    <property name="TOTAL_SIZE_CAP" value="${LOG_TOTAL_SIZE_CAP:-3GB}"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN_WITH_CID}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!--
+      레벨별 appender.
+      LevelFilter 로 "그 레벨만" 남긴다(ThresholdFilter 가 아니다) —
+      error 파일에 warn·info 가 섞이면 장애 시 찾는 의미가 없다.
+    -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <file>${LOG_DIR}/error/error.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/error/error-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${TOTAL_SIZE_CAP}</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="WARN_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>WARN</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <file>${LOG_DIR}/warn/warn.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/warn/warn-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${TOTAL_SIZE_CAP}</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!--
+      info 는 LevelFilter 를 쓰지 않는다. INFO 만 남기면 그 요청이 어떻게 흘러가다
+      경고를 만났는지 추적할 수 없다. ThresholdFilter 로 INFO 이상을 전부 담아
+      "전체 흐름"을 보는 파일로 쓴다.
+    -->
+    <appender name="INFO_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+        <file>${LOG_DIR}/info/info.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/info/info-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${TOTAL_SIZE_CAP}</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!--
+      파일 쓰기를 비동기로 돌린다. 디스크가 느려도 요청 스레드가 붙잡히지 않는다.
+      queueSize 를 넘으면 기본 동작은 WARN 이하를 버리는 것이므로
+      discardingThreshold=0 으로 아무것도 버리지 않게 한다 — 장애 조사용 로그를
+      정작 장애 때 잃으면 의미가 없다.
+    -->
+    <appender name="ASYNC_ERROR" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="ERROR_FILE"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>true</includeCallerData>
+    </appender>
+
+    <appender name="ASYNC_WARN" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="WARN_FILE"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+
+    <appender name="ASYNC_INFO" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="INFO_FILE"/>
+        <queueSize>1024</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+
+    <!--
+      test 프로파일: 콘솔만. 테스트가 파일을 만들면 빌드 디렉터리가 지저분해지고
+      TestContainers 기동마다 롤링이 돈다.
+    -->
+    <springProfile name="test">
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- local: 콘솔 + 파일. 로컬에서도 파일 로깅이 도는지 확인할 수 있어야 한다. -->
+    <springProfile name="local">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_ERROR"/>
+            <appender-ref ref="ASYNC_WARN"/>
+            <appender-ref ref="ASYNC_INFO"/>
+        </root>
+        <logger name="com.example.sakila" level="DEBUG"/>
+    </springProfile>
+
+    <!--
+      prod: 콘솔도 유지한다. 파일만 남기고 콘솔을 끄면 `docker logs` 가 비어
+      컨테이너가 기동조차 못 했을 때 원인을 볼 수 없다.
+      기동 실패는 파일 appender 가 준비되기 전에 일어날 수 있다.
+    -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_ERROR"/>
+            <appender-ref ref="ASYNC_WARN"/>
+            <appender-ref ref="ASYNC_INFO"/>
+        </root>
+    </springProfile>
+
+    <!-- 프로파일 미지정 -->
+    <springProfile name="!test &amp; !local &amp; !prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_ERROR"/>
+            <appender-ref ref="ASYNC_WARN"/>
+            <appender-ref ref="ASYNC_INFO"/>
+        </root>
+    </springProfile>
+
+</configuration>

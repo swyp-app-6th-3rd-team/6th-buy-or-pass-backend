@@ -1,0 +1,31 @@
+### 환경 변수 — 절대 커밋 금지 ###
+.env
+*.p8
+*.pem
+
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+### IDE ###
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.vscode/
+.settings/
+.classpath
+.project
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### 로그 ###
+logs/
+*.log
+
+### 생성 산출물 ###
+src/main/generated/

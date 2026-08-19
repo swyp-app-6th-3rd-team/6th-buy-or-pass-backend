@@ -1,0 +1,136 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.1.0'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    // QueryDSL 은 본가(com.querydsl)가 아니라 OpenFeign 포크를 쓴다.
+    // 본가는 5.1.0 에서 멈춰 Hibernate 7 / Jakarta EE 11 을 지원하지 않는다.
+    // Spring Boot 4.1 이 Hibernate 7.4.5 를 관리하므로 본가를 쓰면 빌드가 깨진다.
+    querydslVersion = '7.5'
+    jjwtVersion = '0.12.6'
+    archunitVersion = '1.4.1'
+    testcontainersVersion = '1.21.3'
+}
+
+dependencies {
+    // Web / JPA
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // 메트릭을 Prometheus 포맷으로 노출한다(/actuator/prometheus).
+    // actuator 가 micrometer-core·observation 을 이미 가져오지만 **레지스트리는 없다** —
+    // 레지스트리가 없으면 메트릭이 메모리에만 쌓이고 아무데도 나가지 않는다.
+    //
+    // 주의: OTel Java Agent 를 쓰므로 spring-boot-starter-opentelemetry 는 넣지 않는다.
+    // 둘을 함께 쓰면 같은 메트릭이 두 경로로 집계된다.
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+    // Security / OAuth2
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // JWT
+    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
+    // DB / Migration
+    // Boot 4 는 자동설정을 모듈별로 쪼갰다. flyway-core 만 넣으면 라이브러리는 올라오지만
+    // 자동설정이 붙지 않아 마이그레이션이 조용히 실행되지 않는다.
+    implementation 'org.springframework.boot:spring-boot-flyway'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // QueryDSL (OpenFeign fork)
+    // 주의: annotationProcessor 의 classifier 는 ':jpa' 다. 본가에서 쓰던 ':jakarta' 가 아니다.
+    // 잘못 쓰면 APT 가 붙지 않아 빌드는 성공하는데 Q 클래스만 생성되지 않는다.
+    implementation "io.github.openfeign.querydsl:querydsl-jpa:${querydslVersion}"
+    annotationProcessor "io.github.openfeign.querydsl:querydsl-apt:${querydslVersion}:jpa"
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+
+    // API 문서 — springdoc 이 OpenAPI 스펙을 만들고, Scalar 가 그 스펙을 보여준다.
+    // Swagger UI(/swagger-ui.html) 와 Scalar(/scalar) 를 둘 다 띄워두고 취향에 맞는 쪽을 쓴다.
+    //
+    // springdoc 은 3.x 가 Spring Boot 4 / Spring Data 4 대응 라인이다.
+    // 2.x 를 쓰면 QuerydslPredicateOperationCustomizer 가 Spring Data 3 의
+    // TypeInformation 을 찾다가 NoClassDefFoundError 로 기동이 실패한다.
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
+    implementation 'com.scalar.maven:scalar-webmvc:0.6.61'
+
+    // Lombok — 도메인 계층에서는 쓰지 않는다(ArchitectureTest 가 강제).
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    // Testcontainers 는 Spring Boot BOM 이 버전을 관리하지 않으므로 자체 BOM 을 import 한다.
+    testImplementation platform("org.testcontainers:testcontainers-bom:${testcontainersVersion}")
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.testcontainers:mysql'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation "com.tngtech.archunit:archunit-junit5:${archunitVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+configurations.configureEach {
+    // 본가 QueryDSL 이 전이 의존으로라도 올라오면 포크와 같은 com.querydsl.* 패키지를 써서 충돌한다.
+    exclude group: 'com.querydsl'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat 'full'
+        showStandardStreams = project.hasProperty('showSql')
+    }
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// 생성된 Q 클래스를 IDE 가 소스로 인식하고, clean 시 함께 지워지도록 한다.
+def generatedDir = layout.buildDirectory.dir('generated/sources/annotationProcessor/java/main')
+
+sourceSets {
+    main {
+        java {
+            srcDir generatedDir
+        }
+    }
+}

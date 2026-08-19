@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # TestContainers 가 Docker 를 쓴다. ubuntu-latest 러너에는 이미 설치되어 있다.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'corretto'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        env:
+          # 기동 검증용. 32바이트 이상이어야 한다.
+          JWT_SECRET_KEY: ci-only-secret-key-not-for-production-32bytes+
+        run: ./gradlew build --no-daemon
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: |
+            build/reports/tests/test
+            build/reports/jacoco
+          retention-days: 7
+
+      - name: Verify QueryDSL Q-classes were generated
+        # 빌드 성공은 대리지표다. classifier 를 잘못 쓰면 빌드는 통과하는데
+        # Q 클래스만 생성되지 않으므로 파일 존재를 직접 확인한다.
+        run: |
+          if ! find build/generated -name 'QRentalEntity.java' | grep -q .; then
+            echo "::error::QueryDSL Q-class 가 생성되지 않았습니다. querydsl-apt classifier 가 ':jpa' 인지 확인하세요."
+            exit 1
+          fi
+          echo "Q-class 생성 확인"
+
+      - name: Verify no stock QueryDSL on classpath
+        # 포크와 본가가 같은 com.querydsl.* 패키지를 쓴다. 둘 다 올라오면 충돌한다.
+        run: |
+          if ./gradlew dependencies --configuration compileClasspath --no-daemon \
+              | grep -E '^\s*[+\\|-]+ com\.querydsl'; then
+            echo "::error::본가 QueryDSL 이 classpath 에 있습니다. exclude 설정을 확인하세요."
+            exit 1
+          fi
+          echo "classpath 중복 없음"
