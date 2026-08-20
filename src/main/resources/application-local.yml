@@ -2,6 +2,10 @@
 #   SPRING_PROFILES_ACTIVE=local
 
 spring:
+  flyway:
+    locations:
+      - classpath:db/migration
+
   jpa:
     properties:
       hibernate:
