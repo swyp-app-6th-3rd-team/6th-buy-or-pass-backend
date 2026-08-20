@@ -29,15 +29,15 @@ class CursorCodecTest {
         // 같은 프로세스에서 만든 위치는 LocalDateTime 이지만,
         // 클라이언트가 돌려준 커서를 복원하면 ISO-8601 문자열이다.
         Map<String, Object> keys = new LinkedHashMap<>();
-        keys.put("rentalDate", LocalDateTime.of(2026, 8, 1, 9, 0));
+        keys.put("createdAt", LocalDateTime.of(2026, 8, 1, 9, 0));
         keys.put("id", 42);
 
         String cursor = CursorCodec.encode((KeysetScrollPosition) ScrollPosition.forward(keys));
         ScrollPosition decoded = CursorCodec.decode(cursor);
 
         Map<String, Object> restored = ((KeysetScrollPosition) decoded).getKeys();
-        assertThat(restored.get("rentalDate")).isInstanceOf(String.class);
-        assertThat(restored.get("rentalDate")).isEqualTo("2026-08-01T09:00:00");
+        assertThat(restored.get("createdAt")).isInstanceOf(String.class);
+        assertThat(restored.get("createdAt")).isEqualTo("2026-08-01T09:00:00");
         assertThat(restored.get("id")).isEqualTo(42);
     }
 
@@ -45,13 +45,13 @@ class CursorCodecTest {
     @DisplayName("커서는 원문이 그대로 보이지 않는다")
     void cursorIsOpaque() {
         Map<String, Object> keys = new LinkedHashMap<>();
-        keys.put("rentalDate", LocalDateTime.of(2026, 8, 1, 9, 0));
+        keys.put("createdAt", LocalDateTime.of(2026, 8, 1, 9, 0));
         keys.put("id", 42);
 
         String cursor = CursorCodec.encode((KeysetScrollPosition) ScrollPosition.forward(keys));
 
         // Base64URL 로 감싸므로 정렬 키가 눈에 띄지 않는다(암호화가 아니라 캡슐화다).
-        assertThat(cursor).doesNotContain("rentalDate").doesNotContain("2026-08-01");
+        assertThat(cursor).doesNotContain("createdAt").doesNotContain("2026-08-01");
     }
 
     @Test

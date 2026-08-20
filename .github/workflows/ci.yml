@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
 
 concurrency:
@@ -43,10 +43,9 @@ jobs:
           retention-days: 7
 
       - name: Verify QueryDSL Q-classes were generated
-        # 빌드 성공은 대리지표다. classifier 를 잘못 쓰면 빌드는 통과하는데
-        # Q 클래스만 생성되지 않으므로 파일 존재를 직접 확인한다.
+        # 특정 예제 엔티티가 아니라 현재 제품 엔티티 중 하나라도 생성됐는지 확인한다.
         run: |
-          if ! find build/generated -name 'QRentalEntity.java' | grep -q .; then
+          if ! find build/generated -name 'Q*Entity.java' | grep -q .; then
             echo "::error::QueryDSL Q-class 가 생성되지 않았습니다. querydsl-apt classifier 가 ':jpa' 인지 확인하세요."
             exit 1
           fi

@@ -13,7 +13,6 @@ spring:
 
   jpa:
     # validate: 엔티티와 실제 스키마가 어긋나면 기동 시점에 잡는다.
-    # Sakila 엔티티 16개를 손으로 만들 때 이게 안전망이 된다.
     # 스키마 변경은 전부 Flyway 로만 한다.
     hibernate:
       ddl-auto: validate
@@ -27,7 +26,6 @@ spring:
 
   flyway:
     enabled: true
-    # 시드 데이터(9MB)는 여기에 없다. local 프로파일이 추가한다.
     locations: classpath:db/migration
     baseline-on-migrate: false
     validate-on-migrate: true

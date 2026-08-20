@@ -137,9 +137,7 @@ user_refresh_token(id, user_id, token_hash CHAR(64), expires_at, created_at,
 
 | 파일 | location | 로드 시점 |
 |---|---|---|
-| `V1__sakila_schema.sql` | `db/migration` | 항상 |
-| `V2__auth_tables.sql` | `db/migration` | 항상 |
-| `V900__sakila_seed_data.sql` (9MB) | `db/seed` | `local` 프로파일만 |
+| `V1__auth_tables.sql` | `db/migration` | 항상 |
 
 ---
 
