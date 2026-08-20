@@ -84,7 +84,7 @@ API 계약, DB 스키마, 주요 패키지 경계, 외부 시스템·미들웨�
 ## 검증
 
 - 변경에 가장 가까운 테스트부터 실행하고 필요할 때 범위를 넓힌다.
-- Gradle 명령은 `gradlew.bat`을 사용한다. 예: `gradlew.bat test --tests <테스트클래스>`.
+- Gradle 명령은 운영체제에 맞는 Wrapper를 사용한다. Windows는 `gradlew.bat`, macOS/Linux는 `./gradlew`를 사용한다.
 - Java 코드 변경에는 최소한 컴파일과 관련 테스트를 확인한다.
 - Flyway 변경에는 파일명·버전, fresh DB 적용, JPA 검증 영향을 확인한다.
 - Testcontainers가 Docker 부재로 실행되지 않으면 코드 실패와 환경 차단을 구분하고, 통과한 범위와 미검증 범위를 모두 적는다.

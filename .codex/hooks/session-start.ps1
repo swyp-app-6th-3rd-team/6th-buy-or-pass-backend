@@ -72,7 +72,7 @@ Buy or Pass backend repository context:
 - Read and follow AGENTS.md before changing files.
 - Preserve existing user changes and keep work inside the requested scope.
 - Do not commit, push, open or edit a PR, or deploy unless the user explicitly asks.
-- This is a Java 25 / Spring Boot / Gradle project; use gradlew.bat and report the exact validation scope.
+- This is a Java 25 / Spring Boot / Gradle project; use the OS-appropriate Gradle Wrapper and report the exact validation scope.
 - Use the repository resolve-problem skill for non-obvious bugs, performance issues, or multi-component diagnosis.
 - Report the current branch after code work.
 "@

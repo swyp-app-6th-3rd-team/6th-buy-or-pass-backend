@@ -74,9 +74,12 @@ try {
 
     $requiredPaths = @(
         @{ Path = 'AGENTS.md'; Type = 'Leaf' },
+        @{ Path = '.gitattributes'; Type = 'Leaf' },
         @{ Path = '.codex\hooks.json'; Type = 'Leaf' },
         @{ Path = '.codex\hooks\session-start.ps1'; Type = 'Leaf' },
         @{ Path = '.codex\hooks\stop-validation.ps1'; Type = 'Leaf' },
+        @{ Path = '.codex\hooks\session-start.sh'; Type = 'Leaf' },
+        @{ Path = '.codex\hooks\stop-validation.sh'; Type = 'Leaf' },
         @{ Path = '.agents\skills\resolve-problem\SKILL.md'; Type = 'Leaf' },
         @{ Path = 'docs\adr'; Type = 'Container' },
         @{ Path = 'docs\prd'; Type = 'Container' }
@@ -94,6 +97,7 @@ try {
         '--check',
         'HEAD',
         '--',
+        '.gitattributes',
         'AGENTS.md',
         '.codex',
         '.agents'
@@ -110,9 +114,28 @@ try {
             if ($null -eq $hooksConfig.hooks.SessionStart -or $null -eq $hooksConfig.hooks.Stop) {
                 Add-Failure -Message '.codex/hooks.json must define SessionStart and Stop hooks.'
             }
+
+            $sessionHook = $hooksConfig.hooks.SessionStart[0].hooks[0]
+            $stopHook = $hooksConfig.hooks.Stop[0].hooks[0]
+            if ([string] $sessionHook.command -notmatch 'session-start\.sh' -or
+                [string] $stopHook.command -notmatch 'stop-validation\.sh') {
+                Add-Failure -Message 'Default hooks must use the POSIX shell scripts.'
+            }
+            if ([string] $sessionHook.commandWindows -notmatch 'session-start\.ps1' -or
+                [string] $stopHook.commandWindows -notmatch 'stop-validation\.ps1') {
+                Add-Failure -Message 'Windows hooks must use the PowerShell scripts.'
+            }
         }
         catch {
             Add-Failure -Message "Invalid .codex/hooks.json: $($_.Exception.Message)"
+        }
+    }
+
+    $attributesPath = Join-Path $script:repoRoot '.gitattributes'
+    if (Test-Path -LiteralPath $attributesPath -PathType Leaf) {
+        $attributesText = Get-Content -LiteralPath $attributesPath -Raw
+        if ($attributesText -notmatch '(?m)^\.codex/hooks/\*\.sh\s+text\s+eol=lf\s*$') {
+            Add-Failure -Message '.gitattributes must keep Codex shell hooks on LF line endings.'
         }
     }
 
