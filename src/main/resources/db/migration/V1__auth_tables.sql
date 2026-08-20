@@ -1,6 +1,5 @@
 -- 인증 테이블 — OAuth2 소셜 로그인 + JWT
 --
--- Sakila 에 이미 customer / staff 가 있으므로 이름을 users 로 둔다.
 -- 설계 근거는 ADR-0006 참조.
 
 CREATE TABLE users (
