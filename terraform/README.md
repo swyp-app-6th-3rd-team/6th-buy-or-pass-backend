@@ -15,6 +15,10 @@ Internet ──▶ IGW ──▶ public subnet
 
 NAT Gateway·ALB·RDS·VPC Endpoint 를 **쓰지 않는다.** 이것이 비용 구조의 전부다.
 
+배포 경로·IAM 신뢰관계·비밀 주입까지 포함한 전체 구조는
+[`docs/diagrams/develop-infra.html`](../docs/diagrams/develop-infra.html) 에 있다.
+브라우저로 열면 요청 경로 / 배포 경로 / 비밀 주입 / 데이터 영속성 4개 뷰로 따라갈 수 있다.
+
 ## 사전 준비
 
 ```bash

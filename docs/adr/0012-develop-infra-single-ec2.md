@@ -45,6 +45,10 @@ Internet ──▶ IGW ──▶ [ public subnet ]
                        └─ mysql   (/data 마운트)
 ```
 
+> 배포 경로·IAM 신뢰관계·비밀 주입까지 포함한 전체 구조는
+> [인터랙티브 구조도](../diagrams/develop-infra.html)를 참조한다
+> (요청 경로 / 배포 경로 / 비밀 주입 / 데이터 영속성 4개 뷰).
+
 ### 구성 요소
 
 | 항목 | 값 | 근거 |
