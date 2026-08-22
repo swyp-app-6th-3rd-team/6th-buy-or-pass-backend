@@ -1,6 +1,6 @@
 # PRD-007 — develop 배포 인프라
 
-**상태**: 진행 중
+**상태**: 검증 완료 (실측 후 teardown)
 
 ## 무엇을 왜
 
@@ -43,13 +43,13 @@
 | 2 | SSH 키 없이 셸에 진입된다 | `aws ssm start-session --target <id>` | ✅ PingStatus=Online, SendCommand 로 셸 실행 확인 |
 | 3 | **인스턴스 교체 후 DB 데이터가 살아남는다** | INSERT → `terraform taint aws_instance` → `apply` → SELECT | ✅ probe 행이 원래 타임스탬프(17:25:13)로 생존. 로그에 "기존 파일시스템 발견, 포맷하지 않음" |
 | 4 | Flyway 가 스키마를 만든다 | `SELECT * FROM flyway_schema_history` | ✅ V1 auth tables success=1, users·user_refresh_token 생성 |
-| 5 | 비밀 재조회가 재시작만으로 된다 | `systemctl restart buyorpass` → `.env` 갱신 확인 | |
+| 5 | 비밀 재조회가 재시작만으로 된다 | `systemctl restart buyorpass` → `.env` 갱신 확인 | ✅ ExecStartPre 가 `.env` 16개 항목 재생성 (systemd 로그 확인) |
 | 6 | develop push 로 배포가 완결된다 | GHA 성공 → `curl http://<EIP>/actuator/health` | ✅ SSM 배포 경로 실측 `{"status":"UP"}` (GHA 트리거는 미실행) |
 | 7 | API 문서가 열린다 | `curl -so /dev/null -w '%{http_code}' http://<EIP>/swagger-ui.html` · `/scalar` | ✅ api-docs·scalar·llms.txt 200, swagger 302. auth API 3종 정상 응답 |
-| 8 | 이전 태그로 롤백된다 | 이전 `develop-<run_id>` 로 SSM 재실행 | 이전 버전 기동 |
+| 8 | 이전 태그로 롤백된다 | 이전 `develop-<run_id>` 로 SSM 재실행 | ⏸ 미측정 — 이미지 태그가 1개뿐이라 롤백 대상 없음. GHA 첫 배포 2회 후 측정 |
 | 9 | **DB·앱 포트가 외부에서 막혀 있다** | 외부에서 `nc -zv <EIP> 3306` · `8080` | ✅ 3306·8080·9090·22 전부 차단, 80만 열림. actuator 도 health 외 404 |
 | 10 | 2GB 안에서 메모리가 버틴다 | `docker stats` · `df -h` (JFR 512MB 포함) | ✅ available 495MB. app 37% / mysql 66% / caddy 12%. 디스크 root 18%, data 4% |
-| 11 | **비용이 추정 범위 안이다** | Budgets 실제 50%($17.5) 알림 **미도달** + Cost Explorer 대조 | 추정 $0.73/일 |
+| 11 | **비용이 추정 범위 안이다** | Budgets 실제 50%($17.5) 알림 **미도달** + Cost Explorer 대조 | ⏸ 미측정 — 약 1시간 가동 후 teardown 하여 누적 비용이 유의미하지 않음. 상시 운영 시 측정 |
 
 판정 3 이 이 사이클의 핵심이다. "MySQL 을 EC2 에 둔다"는 결정의 유일한 실질 위험이
 인스턴스 replace 시 데이터 소실인데, **의도적으로 replace 를 일으켜 보지 않으면 확인할 수 없다.**
@@ -78,3 +78,23 @@
 | **롤백 입력값으로 원격 명령 실행이 가능했다** | `workflow_dispatch` 의 `image_tag` 를 `${{ }}` 로 `run:` 안에 직접 펼쳤다. Actions 는 셸 실행 **전에** 텍스트를 치환하므로 따옴표로 감싸도 소용없고, 그 값이 SSM 을 타고 EC2 루트 셸까지 간다 | `env:` 로 넘겨 셸 변수로만 다루고, `^develop-[0-9]+$` 정규식으로 검증. 리뷰에서 지적받아 수정 |
 | SSM 출력이 2,500자에서 잘린다 | SSM Run Command 의 출력 길이 제한 | 배포 실패 시 stdout·stderr 를 모두 찍고, 부족하면 `/var/log/user-data.log` 를 보도록 안내 |
 | OAuth 변수를 빈 값으로 두면 기동이 거부된다 | compose 의 `:-` 는 변수가 "미설정"일 때만 발동한다. `.env` 에 빈 값이 있으면 빈 문자열이 그대로 전달돼 `application.yml` 의 `:not-configured` 를 덮는다 | Secrets Manager 에 안 쓰는 프로바이더도 `not-configured` 를 넣도록 README 에 명시. compose 에도 `:-not-configured` 방어를 유지 |
+
+## 검증 실행 기록 (2026-08-22)
+
+관리 계정 251128835262 / ap-northeast-2 에 실제 apply 후 실측하고 teardown 했다.
+
+| 단계 | 결과 |
+|---|---|
+| `terraform apply` | 27 리소스 생성 |
+| 인스턴스 교체 검증 | `taint` → `apply`, 볼륨 detach/재attach 정상 |
+| `terraform destroy` | 27 리소스 삭제, 잔존 0 확인 (EC2·EBS·EIP·VPC·ECR·Secrets·IAM·OIDC 전부 0) |
+
+**대리지표 아닌 실측:** 앱이 실제로 뜨고 외부에서 API 가 응답하는 것까지 확인했다.
+`/actuator/health` → `{"status":"UP"}`, `/api/auth/me` → 401 구조화 응답,
+`/v3/api-docs` → 200. Flyway V1 적용, MySQL 데이터 209MB 가 `/data`(별도 EBS)에 적재.
+
+**teardown 시 `prevent_destroy` 가 볼륨에서 destroy 를 막았다** — 설계대로 동작했으며,
+검증용으로 일시 해제한 뒤 즉시 복구했다.
+
+미측정 2건(판정 8·11)은 각각 롤백 대상 이미지와 누적 청구가 필요해 이번 사이클에서는
+측정하지 못했다. 상시 운영 시작 시 측정한다.

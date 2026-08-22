@@ -19,6 +19,7 @@ resource "aws_ebs_volume" "data" {
   tags = { Name = "${local.name_prefix}-data" }
 
   # 실수로 날리는 것을 막는다. 정말 지우려면 이 블록을 먼저 지워야 한다.
+  # (teardown 시 destroy 가 여기서 멈추는 것은 정상이며, 설계된 방어다.)
   lifecycle {
     prevent_destroy = true
   }
