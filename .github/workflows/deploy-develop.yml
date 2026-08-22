@@ -49,12 +49,26 @@ jobs:
 
       - name: Resolve image tag
         id: tag
+        # ⚠️ image_tag 는 사람이 입력하는 값이다. 두 가지를 지킨다.
+        #   1. ${{ }} 로 run: 안에 직접 펼치지 않는다 — 펼치면 러너에서 셸 주입이 된다.
+        #      env: 로 넘겨 셸 변수로만 다룬다.
+        #   2. 형식을 정규식으로 검증한다 — 이 값은 아래에서 SSM 을 통해
+        #      EC2 의 루트 셸에 전달되므로, 메타문자가 들어가면 원격 명령 실행이 된다.
+        env:
+          INPUT_TAG: ${{ inputs.image_tag }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          if [ -n "${{ inputs.image_tag }}" ]; then
-            echo "value=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ -n "$INPUT_TAG" ]; then
+            if ! printf '%s' "$INPUT_TAG" | grep -qE '^develop-[0-9]+$'; then
+              echo "::error::image_tag 형식이 올바르지 않습니다: '$INPUT_TAG'"
+              echo "::error::develop-<숫자> 형식만 허용합니다 (예: develop-1234567890)"
+              exit 1
+            fi
+            echo "value=$INPUT_TAG" >> "$GITHUB_OUTPUT"
             echo "build=false" >> "$GITHUB_OUTPUT"
           else
-            echo "value=develop-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+            echo "value=develop-$RUN_ID" >> "$GITHUB_OUTPUT"
             echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 

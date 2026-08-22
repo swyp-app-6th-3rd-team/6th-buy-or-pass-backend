@@ -73,5 +73,6 @@
 | compose 오버레이로는 EC2 배포가 안 된다 | `build:` 와 `image:` 가 함께 있으면 compose 는 "그 이름으로 빌드"로 해석한다. EC2 에서 Gradle 빌드가 돌아 2GB 인스턴스가 OOM 된다 | 오버레이 대신 `docker-compose-ec2.yml` 을 완결형으로 분리. 기존 `docker-compose-prod.yml` 은 건드리지 않는다 |
 | **볼륨은 부팅 뒤에 붙는다** | `aws_volume_attachment` 가 `aws_instance` 에 의존하므로, user_data 가 시작될 때 데이터 볼륨이 아직 없는 것이 정상이다. 심링크를 한 번만 확인하는 구조면 늦게 생길 때 놓친다 | 두 탐색 방법(udev 심링크 · 볼륨 ID 시리얼)을 **매 시도마다 함께** 돌리는 재시도 루프로 바꿨다(최대 2분) |
 | **마운트 실패가 조용한 데이터 손실이 된다** | fstab 의 `nofail` 은 마운트 실패해도 부팅을 계속시킨다(SSM 진입을 위한 의도적 선택). 그 상태에서 `mkdir /data/mysql` 을 하면 **루트 볼륨**에 생기고, MySQL 이 정상처럼 돌다가 인스턴스 교체 때 통째로 사라진다 | `mountpoint -q` 로 마운트를 검증하고 실패 시 즉시 중단. "실패해도 진행"과 "실패를 감지"는 별개다 |
+| **롤백 입력값으로 원격 명령 실행이 가능했다** | `workflow_dispatch` 의 `image_tag` 를 `${{ }}` 로 `run:` 안에 직접 펼쳤다. Actions 는 셸 실행 **전에** 텍스트를 치환하므로 따옴표로 감싸도 소용없고, 그 값이 SSM 을 타고 EC2 루트 셸까지 간다 | `env:` 로 넘겨 셸 변수로만 다루고, `^develop-[0-9]+$` 정규식으로 검증. 리뷰에서 지적받아 수정 |
 | SSM 출력이 2,500자에서 잘린다 | SSM Run Command 의 출력 길이 제한 | 배포 실패 시 stdout·stderr 를 모두 찍고, 부족하면 `/var/log/user-data.log` 를 보도록 안내 |
 | OAuth 변수를 빈 값으로 두면 기동이 거부된다 | compose 의 `:-` 는 변수가 "미설정"일 때만 발동한다. `.env` 에 빈 값이 있으면 빈 문자열이 그대로 전달돼 `application.yml` 의 `:not-configured` 를 덮는다 | Secrets Manager 에 안 쓰는 프로바이더도 `not-configured` 를 넣도록 README 에 명시. compose 에도 `:-not-configured` 방어를 유지 |
