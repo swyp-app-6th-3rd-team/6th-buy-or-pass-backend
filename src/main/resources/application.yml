@@ -155,6 +155,11 @@ scalar:
   dark-mode: true
   telemetry: false
 
+# llms.txt — 같은 스펙을 LLM 이 읽기 좋은 마크다운으로 낸다(/llms.txt, /llms.md).
+# FE 가 API 계약을 프롬프트에 그대로 붙여넣는 용도. 근거: ADR-0011
+llms-txt:
+  enabled: true
+
 logging:
   level:
     root: INFO

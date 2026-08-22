@@ -14,3 +14,4 @@
 | [003](PRD-003-인증.md) | OAuth2 + JWT 인증 | 완료 |
 | [004](PRD-004-테스트.md) | 테스트와 아키텍처 규칙 | 완료 |
 | [005](PRD-005-관측성.md) | 관측성 (OpenTelemetry + Grafana) | 완료 |
+| [006](PRD-006-LLM문서서빙.md) | LLM 문서 서빙 (llms.txt) | 완료 |
