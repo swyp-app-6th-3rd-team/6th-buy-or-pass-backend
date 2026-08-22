@@ -44,9 +44,12 @@ import java.util.List;
 @EnableConfigurationProperties(AuthProperties.class)
 public class SecurityConfig {
 
+    // 문서 경로는 한 덩어리로 둔다. 나중에 운영에서 문서를 잠글 때
+    // /llms.txt 만 남아 공개되는 일이 없도록 같은 자리에서 관리한다.
     private static final String[] PUBLIC_GET = {
             "/", "/error", "/favicon.ico",
             "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/scalar/**", "/scalar",
+            "/llms.txt", "/llms.md",
             "/actuator/health/**"
     };
 
