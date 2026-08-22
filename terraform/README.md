@@ -5,19 +5,12 @@
 [ADR-0013](../docs/adr/0013-oidc-and-secrets-manager.md), 완료 판정은
 [PRD-007](../docs/prd/PRD-007-develop배포인프라.md) 에 있다.
 
-```
-Internet ──▶ IGW ──▶ public subnet
-                       EC2 t4g.small (arm64)
-                       ├─ caddy  :80 → app:8080  (/actuator/health 만 app:9090)
-                       ├─ app    (ECR 이미지)
-                       └─ mysql  (/data = 별도 EBS)
-```
+![develop 인프라 구조도](../docs/diagrams/develop-infra.light.png)
 
 NAT Gateway·ALB·RDS·VPC Endpoint 를 **쓰지 않는다.** 이것이 비용 구조의 전부다.
 
-배포 경로·IAM 신뢰관계·비밀 주입까지 포함한 전체 구조는
-[`docs/diagrams/develop-infra.html`](../docs/diagrams/develop-infra.html) 에 있다.
-브라우저로 열면 요청 경로 / 배포 경로 / 비밀 주입 / 데이터 영속성 4개 뷰로 따라갈 수 있다.
+<sub>다크 버전: [`develop-infra.dark.png`](../docs/diagrams/develop-infra.dark.png) ·
+뷰별로 따라가려면 [인터랙티브 구조도](../docs/diagrams/develop-infra.html)</sub>
 
 ## 사전 준비
 

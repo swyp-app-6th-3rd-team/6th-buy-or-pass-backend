@@ -37,17 +37,11 @@ task definition 으로 재작성해야 하지만, EC2 위 docker-compose 는 거
 
 **public subnet 의 EC2 인스턴스 1대에 docker-compose 로 앱과 MySQL 을 함께 띄운다.**
 
-```
-Internet ──▶ IGW ──▶ [ public subnet ]
-                       EC2 t4g.small (arm64)
-                       ├─ Caddy   :80 → app:8080
-                       ├─ app     (ECR 이미지)
-                       └─ mysql   (/data 마운트)
-```
+![develop 인프라 구조도](../diagrams/develop-infra.light.png)
 
-> 배포 경로·IAM 신뢰관계·비밀 주입까지 포함한 전체 구조는
-> [인터랙티브 구조도](../diagrams/develop-infra.html)를 참조한다
-> (요청 경로 / 배포 경로 / 비밀 주입 / 데이터 영속성 4개 뷰).
+<sub>다크 버전: [`develop-infra.dark.png`](../diagrams/develop-infra.dark.png) ·
+뷰를 나눠 보려면 [인터랙티브 구조도](../diagrams/develop-infra.html)
+(요청 경로 / 배포 경로 / 비밀 주입 / 데이터 영속성 4개 뷰)</sub>
 
 ### 구성 요소
 
