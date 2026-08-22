@@ -116,6 +116,28 @@ ${fetch_secrets_script}
 FETCH_EOF
 chmod 700 /usr/local/bin/fetch-secrets.sh
 
+# compose 기동 래퍼.
+#
+# ⚠️ 첫 배포 전에는 compose 파일이 없다. 그때 유닛이 실패하면 systemd 가 유닛을
+#    "failed" 로 낙인찍고, 이후 배포로 컨테이너가 떠도 `systemctl stop` 이
+#    ExecStop 을 실행하지 않는다(이미 죽은 것으로 보므로). 컨테이너는
+#    restart:unless-stopped 로 살아 있는데 systemd 로는 제어가 안 되는 상태가 된다.
+#    실측으로 확인한 문제다.
+#
+#    그래서 "파일 없음"(정상, 배포 대기)과 "compose 실패"(진짜 오류)를 구분한다.
+#    SuccessExitStatus=1 로 뭉뚱그리면 진짜 실패까지 성공으로 덮인다.
+cat > /usr/local/bin/buyorpass-up.sh <<'UP_EOF'
+#!/bin/bash
+set -euo pipefail
+COMPOSE_FILE="${app_dir}/docker-compose-ec2.yml"
+if [ ! -f "$COMPOSE_FILE" ]; then
+  echo "compose 파일이 아직 없습니다. 첫 배포를 기다립니다: $COMPOSE_FILE"
+  exit 0
+fi
+exec /usr/bin/docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+UP_EOF
+chmod 755 /usr/local/bin/buyorpass-up.sh
+
 # ── 4. systemd 유닛 ────────────────────────────────────────
 #
 # ExecStartPre 로 비밀을 매 기동마다 다시 조회한다.
@@ -131,8 +153,15 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${app_dir}
+
+# ⚠️ 첫 배포 전에는 compose 파일이 없다. 그때 유닛이 exit 14 로 실패하면
+#    systemd 가 유닛을 "failed" 로 낙인찍고, 이후 배포로 컨테이너가 떠도
+#    `systemctl stop` 이 ExecStop 을 실행하지 않는다(이미 죽은 것으로 보므로).
+#    그러면 컨테이너는 restart:unless-stopped 로 살아 있는데 systemd 로는
+#    제어가 안 되는 상태가 된다 — 실측으로 확인한 문제다.
+#    파일이 없으면 조용히 성공 처리해 유닛을 active 로 유지한다.
 ExecStartPre=/usr/local/bin/fetch-secrets.sh
-ExecStart=/usr/bin/docker compose -f ${app_dir}/docker-compose-ec2.yml up -d --remove-orphans
+ExecStart=/usr/local/bin/buyorpass-up.sh
 ExecStop=/usr/bin/docker compose -f ${app_dir}/docker-compose-ec2.yml down
 TimeoutStartSec=600
 

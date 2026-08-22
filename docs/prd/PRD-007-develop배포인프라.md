@@ -41,14 +41,14 @@
 |---|---|---|---|
 | 1 | 과금 리소스가 계획에 없다 | `terraform plan \| grep -E "nat_gateway\|_lb\.\|db_instance\|vpc_endpoint"` | ✅ 빈 출력 (plan 27 add / 0 change / 0 destroy) |
 | 2 | SSH 키 없이 셸에 진입된다 | `aws ssm start-session --target <id>` | ✅ PingStatus=Online, SendCommand 로 셸 실행 확인 |
-| 3 | **인스턴스 교체 후 DB 데이터가 살아남는다** | INSERT → `terraform taint aws_instance` → `apply` → SELECT | |
-| 4 | Flyway 가 스키마를 만든다 | `SELECT * FROM flyway_schema_history` | V1 적용 |
+| 3 | **인스턴스 교체 후 DB 데이터가 살아남는다** | INSERT → `terraform taint aws_instance` → `apply` → SELECT | ✅ probe 행이 원래 타임스탬프(17:25:13)로 생존. 로그에 "기존 파일시스템 발견, 포맷하지 않음" |
+| 4 | Flyway 가 스키마를 만든다 | `SELECT * FROM flyway_schema_history` | ✅ V1 auth tables success=1, users·user_refresh_token 생성 |
 | 5 | 비밀 재조회가 재시작만으로 된다 | `systemctl restart buyorpass` → `.env` 갱신 확인 | |
-| 6 | develop push 로 배포가 완결된다 | GHA 성공 → `curl http://<EIP>/actuator/health` | `{"status":"UP"}` |
-| 7 | API 문서가 열린다 | `curl -so /dev/null -w '%{http_code}' http://<EIP>/swagger-ui.html` · `/scalar` | 200 |
+| 6 | develop push 로 배포가 완결된다 | GHA 성공 → `curl http://<EIP>/actuator/health` | ✅ SSM 배포 경로 실측 `{"status":"UP"}` (GHA 트리거는 미실행) |
+| 7 | API 문서가 열린다 | `curl -so /dev/null -w '%{http_code}' http://<EIP>/swagger-ui.html` · `/scalar` | ✅ api-docs·scalar·llms.txt 200, swagger 302. auth API 3종 정상 응답 |
 | 8 | 이전 태그로 롤백된다 | 이전 `develop-<run_id>` 로 SSM 재실행 | 이전 버전 기동 |
-| 9 | **DB·앱 포트가 외부에서 막혀 있다** | 외부에서 `nc -zv <EIP> 3306` · `8080` | 둘 다 거부 |
-| 10 | 2GB 안에서 메모리가 버틴다 | `docker stats` · `df -h` (JFR 512MB 포함) | 여유 확인 |
+| 9 | **DB·앱 포트가 외부에서 막혀 있다** | 외부에서 `nc -zv <EIP> 3306` · `8080` | ✅ 3306·8080·9090·22 전부 차단, 80만 열림. actuator 도 health 외 404 |
+| 10 | 2GB 안에서 메모리가 버틴다 | `docker stats` · `df -h` (JFR 512MB 포함) | ✅ available 495MB. app 37% / mysql 66% / caddy 12%. 디스크 root 18%, data 4% |
 | 11 | **비용이 추정 범위 안이다** | Budgets 실제 50%($17.5) 알림 **미도달** + Cost Explorer 대조 | 추정 $0.73/일 |
 
 판정 3 이 이 사이클의 핵심이다. "MySQL 을 EC2 에 둔다"는 결정의 유일한 실질 위험이
@@ -71,6 +71,7 @@
 | `/actuator/health` 가 8080 에 없다 | `application.yml` 이 관리 엔드포인트를 **의도적으로** 9090 으로 분리했다. `/actuator/prometheus` 가 인증 없이 열려 JVM·DB 지표가 새는 것을 막기 위해서다 | compose healthcheck 를 9090 으로 고치고, Caddy 는 `/actuator/health` 만 9090 으로 통과시킨 뒤 나머지 `/actuator/*` 는 404 로 막았다. 앱의 보안 의도를 인프라가 깨지 않게 한다 |
 | Nitro 인스턴스에서 EBS 장치명이 어긋난다 | t4g 는 Nitro 라 `/dev/sdf` 로 요청해도 커널엔 `/dev/nvme<N>n1` 로 보이고, N 은 **부팅 시 응답 순서**로 정해져 매핑 이름과 무관하다 | user_data 가 (a) AL2023 udev 심링크 → (b) 볼륨 ID 시리얼 탐색 순으로 장치를 찾고, fstab 엔 UUID 로 적는다 |
 | compose 오버레이로는 EC2 배포가 안 된다 | `build:` 와 `image:` 가 함께 있으면 compose 는 "그 이름으로 빌드"로 해석한다. EC2 에서 Gradle 빌드가 돌아 2GB 인스턴스가 OOM 된다 | 오버레이 대신 `docker-compose-ec2.yml` 을 완결형으로 분리. 기존 `docker-compose-prod.yml` 은 건드리지 않는다 |
+| **첫 배포 전 부팅이 유닛을 영구 failed 로 만든다** (실측) | 부팅 시 compose 파일이 아직 없어 유닛이 exit 14 로 실패하면 systemd 가 "failed" 로 낙인찍는다. 이후 배포로 컨테이너가 떠도 `systemctl stop` 이 ExecStop 을 실행하지 않아(이미 죽은 것으로 봄), 컨테이너는 `restart:unless-stopped` 로 살아 있는데 systemd 제어가 안 되는 상태가 된다 | `buyorpass-up.sh` 래퍼가 "파일 없음"(exit 0, 배포 대기)과 "compose 실패"(진짜 오류)를 구분. `SuccessExitStatus=1` 로 뭉뚱그리면 진짜 실패까지 덮이므로 쓰지 않았다 |
 | **EIP 연결이 SSM 등록을 깨뜨린다** (실측) | `aws_eip` 가 `aws_instance` 에 의존해 **부팅 뒤에** 붙는다. 그때 자동할당 public IP 가 EIP 로 교체되며 TCP 연결이 리셋되고, 하필 등록 중이던 SSM 에이전트가 `connection reset by peer` 로 실패한다. 에이전트는 **hibernation** 에 들어가 재시도 간격을 수십 분으로 늘려 스스로 복구하지 않는다. SG 에 22번이 없으므로 **복구 경로 상실**이 된다 | user_data 마지막에 `systemctl restart amazon-ssm-agent` 추가(EIP 연결 이후 시점이라 안정된 네트워크로 재등록). 기존 인스턴스는 재부팅으로 복구 |
 | **볼륨은 부팅 뒤에 붙는다** | `aws_volume_attachment` 가 `aws_instance` 에 의존하므로, user_data 가 시작될 때 데이터 볼륨이 아직 없는 것이 정상이다. 심링크를 한 번만 확인하는 구조면 늦게 생길 때 놓친다 | 두 탐색 방법(udev 심링크 · 볼륨 ID 시리얼)을 **매 시도마다 함께** 돌리는 재시도 루프로 바꿨다(최대 2분) |
 | **마운트 실패가 조용한 데이터 손실이 된다** | fstab 의 `nofail` 은 마운트 실패해도 부팅을 계속시킨다(SSM 진입을 위한 의도적 선택). 그 상태에서 `mkdir /data/mysql` 을 하면 **루트 볼륨**에 생기고, MySQL 이 정상처럼 돌다가 인스턴스 교체 때 통째로 사라진다 | `mountpoint -q` 로 마운트를 검증하고 실패 시 즉시 중단. "실패해도 진행"과 "실패를 감지"는 별개다 |
