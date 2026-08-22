@@ -144,6 +144,25 @@ UNIT_EOF
 systemctl daemon-reload
 systemctl enable buyorpass.service
 
+# ── 5. SSM 에이전트 재시작 ─────────────────────────────────
+#
+# ⚠️ 이 단계가 없으면 인스턴스에 영영 못 들어간다. 실측으로 확인한 문제다.
+#
+# EIP 는 aws_eip 가 aws_instance 에 의존하므로 **부팅 뒤에** 붙는다. 그 순간
+# 자동할당 public IP 가 EIP 로 **교체**되면서 진행 중이던 TCP 연결이 전부 끊긴다.
+# 하필 그때 SSM 에이전트가 등록을 시도하면 이렇게 실패한다.
+#
+#   SSM Agent entering hibernation due to error: ... connection reset by peer
+#
+# "hibernation" 이 핵심이다 — 에이전트는 실패 후 재시도 간격을 수십 분으로 늘린다.
+# 그래서 네트워크가 정상으로 돌아와도 한참 동안 등록되지 않는다.
+# 보안 그룹에 22번이 없으므로(ADR-0012) 이 상태가 곧 **복구 경로 상실**이다.
+#
+# user_data 는 EIP 연결 이후에 이 지점에 도달하므로, 여기서 재시작하면 안정된
+# 네트워크로 다시 등록한다.
+systemctl restart amazon-ssm-agent || true
+systemctl is-active amazon-ssm-agent || echo "WARN: ssm-agent 비활성 — 콘솔 출력을 확인하십시오"
+
 # 아직 compose 파일과 이미지가 없다(첫 배포 전).
 # GitHub Actions 가 파일을 밀어넣고 기동시키므로 여기서는 start 하지 않는다.
 echo "user-data 완료. 첫 배포를 기다립니다."
