@@ -99,6 +99,8 @@ mount -a
 if ! mountpoint -q "${data_mount_point}"; then
   echo "ERROR: ${data_mount_point} 마운트에 실패했습니다($${DEVICE})." >&2
   echo "ERROR: 이대로 두면 MySQL 데이터가 루트 볼륨에 쌓여 인스턴스 교체 시 사라집니다." >&2
+  echo "ERROR: 볼륨 상태를 확인한 뒤 이 스크립트를 다시 실행하십시오(멱등합니다):" >&2
+  echo "ERROR:   sudo bash /var/lib/cloud/instance/user-data.txt" >&2
   exit 1
 fi
 

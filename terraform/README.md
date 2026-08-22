@@ -149,6 +149,35 @@ sudo docker exec -it buyorpass-mysql mysql -u root -p
 Actions → deploy-develop → Run workflow → 이전 태그(`develop-<run_id>`) 입력.
 불변 태그를 SSM 으로 넘기는 구조라 재빌드 없이 즉시 되돌아간다.
 
+## 인스턴스 교체 (AMI 갱신 · 스펙 변경 · 판정 3 검증)
+
+MySQL 이 쓰기 중인 상태에서 인스턴스를 교체하면, EBS 강제 분리는 정전이나 `kill -9` 와
+같은 unclean shutdown 이 된다. xfs 저널 + InnoDB crash recovery 가 이를 감내하도록
+설계돼 있어 이론상 안전하지만, **무위험은 아니다.** 순서를 지킨다.
+
+```bash
+INSTANCE=$(terraform output -raw instance_id)
+
+# 1) 앱과 DB 를 정상 종료한다 (이 단계를 건너뛰면 crash recovery 에 의존하게 된다)
+aws ssm send-command --instance-ids "$INSTANCE" \
+  --document-name AWS-RunShellScript \
+  --parameters 'commands=["systemctl stop buyorpass"]' \
+  --region ap-northeast-2 --profile root_habin
+
+# 2) 교체
+terraform taint aws_instance.app
+terraform apply
+
+# 3) 데이터 생존 확인
+aws ssm start-session --target "$(terraform output -raw instance_id)" \
+  --region ap-northeast-2 --profile root_habin
+#   sudo docker exec buyorpass-mysql mysql -uroot -p -e "SELECT COUNT(*) FROM ..."
+```
+
+⚠️ 볼륨 자체는 `prevent_destroy` 로 보호되므로 교체 과정에서 삭제되지 않는다.
+`force_detach = true` 는 분리를 강제할 뿐 데이터를 지우지 않는다(EBS 는 네트워크 블록
+스토리지라 분리 ≠ 소거).
+
 ## 주의
 
 - **`aws_ebs_volume.data` 는 `prevent_destroy` 로 보호된다.** MySQL 데이터가 여기 있다.
